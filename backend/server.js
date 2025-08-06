@@ -71,9 +71,23 @@ app.use('*', (req, res) => {
   });
 });
 
-// Connect to MongoDB
+// Connect to MongoDB with serverless-optimized options
 if (process.env.MONGODB_URI) {
-  mongoose.connect(process.env.MONGODB_URI)
+  const mongooseOptions = {
+    maxPoolSize: 1, // Limit connection pool for serverless
+    serverSelectionTimeoutMS: 5000, // Reduce timeout
+    socketTimeoutMS: 45000, // Increase socket timeout
+    bufferCommands: false, // Disable buffering
+    bufferMaxEntries: 0, // Disable buffering
+  };
+
+  // For Vercel serverless, use different connection strategy
+  if (process.env.VERCEL) {
+    mongooseOptions.bufferCommands = false;
+    mongooseOptions.bufferMaxEntries = 0;
+  }
+
+  mongoose.connect(process.env.MONGODB_URI, mongooseOptions)
     .then(() => {
       console.log('Connected to MongoDB successfully');
     })
