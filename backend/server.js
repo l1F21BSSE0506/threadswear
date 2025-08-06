@@ -66,7 +66,9 @@ app.get('/api/health', (req, res) => {
     status: 'OK', 
     message: 'Threadswear.pk API is running',
     environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    mongodb_uri_set: !!process.env.MONGODB_URI,
+    vercel: !!process.env.VERCEL
   });
 });
 
@@ -75,8 +77,28 @@ app.get('/api/test', (req, res) => {
   res.json({ 
     message: 'API is working!',
     env: process.env.NODE_ENV,
-    vercel: !!process.env.VERCEL
+    vercel: !!process.env.VERCEL,
+    mongodb_uri_set: !!process.env.MONGODB_URI
   });
+});
+
+// Database test route
+app.get('/api/db-test', async (req, res) => {
+  try {
+    await connectDB();
+    res.json({ 
+      success: true,
+      message: 'Database connection successful',
+      connected: isConnected,
+      readyState: mongoose.connection.readyState
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Database connection failed',
+      error: error.message
+    });
+  }
 });
 
 // Error handling middleware
