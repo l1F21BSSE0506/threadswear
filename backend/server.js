@@ -75,29 +75,60 @@ app.use('*', (req, res) => {
 if (process.env.MONGODB_URI) {
   const mongooseOptions = {
     maxPoolSize: 1, // Limit connection pool for serverless
-    serverSelectionTimeoutMS: 5000, // Reduce timeout
+    serverSelectionTimeoutMS: 10000, // Increase timeout
     socketTimeoutMS: 45000, // Increase socket timeout
     bufferCommands: false, // Disable buffering
     bufferMaxEntries: 0, // Disable buffering
+    connectTimeoutMS: 10000, // Connection timeout
+    retryWrites: true,
+    w: 'majority'
   };
 
   // For Vercel serverless, use different connection strategy
   if (process.env.VERCEL) {
     mongooseOptions.bufferCommands = false;
     mongooseOptions.bufferMaxEntries = 0;
+    mongooseOptions.maxPoolSize = 1;
   }
 
-  mongoose.connect(process.env.MONGODB_URI, mongooseOptions)
-    .then(() => {
-      console.log('Connected to MongoDB successfully');
-    })
-    .catch((err) => {
-      console.error('MongoDB connection error:', err);
-      // Don't exit in serverless environment
-      if (!process.env.VERCEL) {
-        process.exit(1);
-      }
-    });
+  // Add connection options to URI for better serverless compatibility
+  let mongoUri = process.env.MONGODB_URI;
+  if (process.env.VERCEL && !mongoUri.includes('?')) {
+    mongoUri += '?retryWrites=true&w=majority&maxPoolSize=1&bufferCommands=false';
+  }
+
+  // Add connection event listeners
+  mongoose.connection.on('connected', () => {
+    console.log('Connected to MongoDB successfully');
+  });
+
+  mongoose.connection.on('error', (err) => {
+    console.error('MongoDB connection error:', err);
+  });
+
+  mongoose.connection.on('disconnected', () => {
+    console.log('MongoDB disconnected');
+  });
+
+  // Connect with retry logic for serverless
+  const connectWithRetry = () => {
+    mongoose.connect(mongoUri, mongooseOptions)
+      .then(() => {
+        console.log('Connected to MongoDB successfully');
+      })
+      .catch((err) => {
+        console.error('MongoDB connection error:', err);
+        if (process.env.VERCEL) {
+          // For serverless, don't retry immediately
+          console.log('Connection failed in serverless environment');
+        } else {
+          // For regular server, retry after 5 seconds
+          setTimeout(connectWithRetry, 5000);
+        }
+      });
+  };
+
+  connectWithRetry();
 } else {
   console.error('MONGODB_URI environment variable is not set');
   if (!process.env.VERCEL) {
