@@ -35,10 +35,101 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Database connection middleware
-app.use('/api', async (req, res, next) => {
+// Health check route (no database required)
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Threadswear.pk API is running',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
+    mongodb_uri_set: !!process.env.MONGODB_URI,
+    vercel: !!process.env.VERCEL
+  });
+});
+
+// Simple test route (no database required)
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'API is working!',
+    env: process.env.NODE_ENV,
+    vercel: !!process.env.VERCEL,
+    mongodb_uri_set: !!process.env.MONGODB_URI
+  });
+});
+
+// Database test route (tests connection specifically)
+app.get('/api/db-test', async (req, res) => {
   try {
-    // Ensure database is connected before processing any API request
+    await connectDB();
+    res.json({ 
+      success: true,
+      message: 'Database connection successful',
+      connected: isConnected,
+      readyState: mongoose.connection.readyState
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Database connection failed',
+      error: error.message
+    });
+  }
+});
+
+// Database connection middleware (only for routes that need database)
+app.use('/api/auth', async (req, res, next) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      console.log('Database not connected, attempting connection...');
+      await connectDB();
+    }
+    next();
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Database connection failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+app.use('/api/products', async (req, res, next) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      console.log('Database not connected, attempting connection...');
+      await connectDB();
+    }
+    next();
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Database connection failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+app.use('/api/orders', async (req, res, next) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      console.log('Database not connected, attempting connection...');
+      await connectDB();
+    }
+    next();
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Database connection failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+app.use('/api/users', async (req, res, next) => {
+  try {
     if (mongoose.connection.readyState !== 1) {
       console.log('Database not connected, attempting connection...');
       await connectDB();
@@ -59,47 +150,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
-
-// Health check route
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'Threadswear.pk API is running',
-    environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString(),
-    mongodb_uri_set: !!process.env.MONGODB_URI,
-    vercel: !!process.env.VERCEL
-  });
-});
-
-// Simple test route
-app.get('/api/test', (req, res) => {
-  res.json({ 
-    message: 'API is working!',
-    env: process.env.NODE_ENV,
-    vercel: !!process.env.VERCEL,
-    mongodb_uri_set: !!process.env.MONGODB_URI
-  });
-});
-
-// Database test route
-app.get('/api/db-test', async (req, res) => {
-  try {
-    await connectDB();
-    res.json({ 
-      success: true,
-      message: 'Database connection successful',
-      connected: isConnected,
-      readyState: mongoose.connection.readyState
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false,
-      message: 'Database connection failed',
-      error: error.message
-    });
-  }
-});
 
 // Error handling middleware
 app.use(errorMiddleware);
