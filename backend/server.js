@@ -35,6 +35,22 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Database connection middleware
+app.use('/api', async (req, res, next) => {
+  if (!isConnected && mongoose.connection.readyState !== 1) {
+    try {
+      await connectDB();
+    } catch (error) {
+      console.error('Database connection failed:', error);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Database connection failed' 
+      });
+    }
+  }
+  next();
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
@@ -71,70 +87,70 @@ app.use('*', (req, res) => {
   });
 });
 
-// Connect to MongoDB with serverless-optimized options
-if (process.env.MONGODB_URI) {
-  const mongooseOptions = {
-    maxPoolSize: 1, // Limit connection pool for serverless
-    serverSelectionTimeoutMS: 10000, // Increase timeout
-    socketTimeoutMS: 45000, // Increase socket timeout
-    bufferCommands: false, // Disable buffering
-    bufferMaxEntries: 0, // Disable buffering
-    connectTimeoutMS: 10000, // Connection timeout
-    retryWrites: true,
-    w: 'majority'
-  };
+// MongoDB connection setup
+let isConnected = false;
 
-  // For Vercel serverless, use different connection strategy
-  if (process.env.VERCEL) {
-    mongooseOptions.bufferCommands = false;
-    mongooseOptions.bufferMaxEntries = 0;
-    mongooseOptions.maxPoolSize = 1;
+const connectDB = async () => {
+  if (isConnected) {
+    console.log('Using existing database connection');
+    return;
   }
 
-  // Add connection options to URI for better serverless compatibility
-  let mongoUri = process.env.MONGODB_URI;
-  if (process.env.VERCEL && !mongoUri.includes('?')) {
-    mongoUri += '?retryWrites=true&w=majority&maxPoolSize=1&bufferCommands=false';
+  if (!process.env.MONGODB_URI) {
+    console.error('MONGODB_URI environment variable is not set');
+    if (!process.env.VERCEL) {
+      process.exit(1);
+    }
+    return;
   }
 
-  // Add connection event listeners
-  mongoose.connection.on('connected', () => {
+  try {
+    const mongooseOptions = {
+      maxPoolSize: 1,
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      bufferCommands: true, // Enable buffering for serverless
+      bufferMaxEntries: 0,
+      connectTimeoutMS: 10000,
+      retryWrites: true,
+      w: 'majority'
+    };
+
+    // Add connection options to URI
+    let mongoUri = process.env.MONGODB_URI;
+    if (!mongoUri.includes('?')) {
+      mongoUri += '?retryWrites=true&w=majority';
+    }
+
+    await mongoose.connect(mongoUri, mongooseOptions);
+    isConnected = true;
     console.log('Connected to MongoDB successfully');
-  });
-
-  mongoose.connection.on('error', (err) => {
-    console.error('MongoDB connection error:', err);
-  });
-
-  mongoose.connection.on('disconnected', () => {
-    console.log('MongoDB disconnected');
-  });
-
-  // Connect with retry logic for serverless
-  const connectWithRetry = () => {
-    mongoose.connect(mongoUri, mongooseOptions)
-      .then(() => {
-        console.log('Connected to MongoDB successfully');
-      })
-      .catch((err) => {
-        console.error('MongoDB connection error:', err);
-        if (process.env.VERCEL) {
-          // For serverless, don't retry immediately
-          console.log('Connection failed in serverless environment');
-        } else {
-          // For regular server, retry after 5 seconds
-          setTimeout(connectWithRetry, 5000);
-        }
-      });
-  };
-
-  connectWithRetry();
-} else {
-  console.error('MONGODB_URI environment variable is not set');
-  if (!process.env.VERCEL) {
-    process.exit(1);
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    if (!process.env.VERCEL) {
+      process.exit(1);
+    }
   }
-}
+};
+
+// Connect to MongoDB
+connectDB();
+
+// Add connection event listeners
+mongoose.connection.on('connected', () => {
+  console.log('MongoDB connected');
+  isConnected = true;
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+  isConnected = false;
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB disconnected');
+  isConnected = false;
+});
 
 // Only start server if not in serverless environment
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
