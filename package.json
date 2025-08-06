@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "setup": "node setup.js",
     "deploy:vercel": "vercel --prod",
-    "deploy:railway": "railway up",
+
     "test:deployment": "node test-deployment.js"
   },
   "dependencies": {

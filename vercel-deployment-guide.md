@@ -1,5 +1,7 @@
 # Vercel Deployment Guide - Threadswear.pk
 
+This guide will help you deploy both frontend and backend on Vercel.
+
 ## 🚀 Backend Deployment
 
 ### 1. Create Backend Project
@@ -82,4 +84,10 @@ Should show your website homepage
 
 ## 📱 Final URLs
 - **Backend**: `https://threadswear-backend.vercel.app`
-- **Frontend**: `https://threadswear-frontend.vercel.app` 
+- **Frontend**: `https://threadswear-frontend.vercel.app`
+
+## 🎯 Benefits of Vercel-Only Deployment
+- **Unified Dashboard**: Manage both frontend and backend in one place
+- **Better Integration**: Seamless communication between services
+- **Simplified CI/CD**: Single platform for all deployments
+- **Cost Effective**: No need for multiple hosting services 
