@@ -43,7 +43,21 @@ app.use('/api/users', userRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Threadswear.pk API is running' });
+  res.json({ 
+    status: 'OK', 
+    message: 'Threadswear.pk API is running',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Simple test route
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'API is working!',
+    env: process.env.NODE_ENV,
+    vercel: !!process.env.VERCEL
+  });
 });
 
 // Error handling middleware
@@ -58,13 +72,24 @@ app.use('*', (req, res) => {
 });
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log('Connected to MongoDB successfully');
-  })
-  .catch((err) => {
-    console.error('MongoDB connection error:', err);
-  });
+if (process.env.MONGODB_URI) {
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(() => {
+      console.log('Connected to MongoDB successfully');
+    })
+    .catch((err) => {
+      console.error('MongoDB connection error:', err);
+      // Don't exit in serverless environment
+      if (!process.env.VERCEL) {
+        process.exit(1);
+      }
+    });
+} else {
+  console.error('MONGODB_URI environment variable is not set');
+  if (!process.env.VERCEL) {
+    process.exit(1);
+  }
+}
 
 // Only start server if not in serverless environment
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
