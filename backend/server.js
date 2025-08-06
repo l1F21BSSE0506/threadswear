@@ -92,7 +92,6 @@ app.use('*', (req, res) => {
 
 // MongoDB connection setup for Vercel serverless
 let isConnected = false;
-let connectionPromise = null;
 
 const connectDB = async () => {
   // If already connected, return
@@ -101,54 +100,39 @@ const connectDB = async () => {
     return;
   }
 
-  // If connection is in progress, wait for it
-  if (connectionPromise) {
-    console.log('Connection in progress, waiting...');
-    return connectionPromise;
-  }
-
   if (!process.env.MONGODB_URI) {
     console.error('MONGODB_URI environment variable is not set');
     throw new Error('MONGODB_URI not configured');
   }
 
-  // Create new connection promise
-  connectionPromise = (async () => {
-    try {
-      const mongooseOptions = {
-        maxPoolSize: 1,
-        serverSelectionTimeoutMS: 30000, // Increased timeout
-        socketTimeoutMS: 45000,
-        bufferCommands: false, // Disable buffering for serverless
-        bufferMaxEntries: 0,
-        connectTimeoutMS: 30000, // Increased timeout
-        retryWrites: true,
-        w: 'majority',
-        keepAlive: true,
-        keepAliveInitialDelay: 300000
-      };
+  try {
+    const mongooseOptions = {
+      maxPoolSize: 1,
+      serverSelectionTimeoutMS: 15000,
+      socketTimeoutMS: 30000,
+      bufferCommands: true, // Enable buffering for better compatibility
+      bufferMaxEntries: 0,
+      connectTimeoutMS: 15000,
+      retryWrites: true,
+      w: 'majority'
+    };
 
-      // Add connection options to URI
-      let mongoUri = process.env.MONGODB_URI;
-      if (!mongoUri.includes('?')) {
-        mongoUri += '?retryWrites=true&w=majority&maxPoolSize=1&bufferCommands=false';
-      }
-
-      console.log('Connecting to MongoDB...');
-      await mongoose.connect(mongoUri, mongooseOptions);
-      isConnected = true;
-      console.log('Connected to MongoDB successfully');
-      return true;
-    } catch (error) {
-      console.error('MongoDB connection error:', error);
-      isConnected = false;
-      throw error;
-    } finally {
-      connectionPromise = null;
+    // Add connection options to URI
+    let mongoUri = process.env.MONGODB_URI;
+    if (!mongoUri.includes('?')) {
+      mongoUri += '?retryWrites=true&w=majority&maxPoolSize=1';
     }
-  })();
 
-  return connectionPromise;
+    console.log('Connecting to MongoDB...');
+    await mongoose.connect(mongoUri, mongooseOptions);
+    isConnected = true;
+    console.log('Connected to MongoDB successfully');
+    return true;
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    isConnected = false;
+    throw error;
+  }
 };
 
 // Add connection event listeners
@@ -160,13 +144,11 @@ mongoose.connection.on('connected', () => {
 mongoose.connection.on('error', (err) => {
   console.error('MongoDB connection error:', err);
   isConnected = false;
-  connectionPromise = null;
 });
 
 mongoose.connection.on('disconnected', () => {
   console.log('MongoDB disconnected');
   isConnected = false;
-  connectionPromise = null;
 });
 
 // Initialize connection
